@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Live Game - Bolinha</title>
+    <script src="https://unpkg.com/tiktok-live-connector@latest/dist/browser/index.js"></script>
+    <style>
+        body { margin: 0; background: #00ff00; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; }
+        #ball { 
+            width: 100px; height: 100px; 
+            background: radial-gradient(circle, #ff0000, #330000); 
+            border-radius: 50%; transition: 0.1s; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            display: flex; justify-content: center; align-items: center; color: white; font-weight: bold;
+        }
+        #info { position: fixed; top: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 10px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div id="info">Conectando ao @<span id="target">Aguardando...</span></div>
+    <div id="ball" id="displaySize">100</div>
+
+    <script>
+        // --- CONFIGURAÇÃO ---
+        const SEU_USER = "SEU_USUARIO_AQUI"; // COLOQUE SEU @ SEM O @
+        let size = 100;
+
+        document.getElementById('target').innerText = SEU_USER;
+        const ball = document.getElementById('ball');
+
+        // Conecta com o TikTok
+        let connection = new TikTokLiveConnector(SEU_USER);
+
+        connection.connect().then(state => {
+            console.log("Conectado!");
+        }).catch(err => {
+            console.error("Erro ao conectar", err);
+        });
+
+        // Lógica para CURTIDAS (Likes)
+        connection.on('like', (data) => {
+            size += 2; // Aumenta de 2 em 2 pixels por curtida
+            atualizarBola();
+        });
+
+        // Lógica para PRESENTES (Gifts)
+        connection.on('gift', (data) => {
+            // Aumenta proporcional ao valor do presente (diamantes)
+            let multiplicador = data.diamondCount * 15; 
+            size += multiplicador;
+            atualizarBola();
+        });
+
+        function atualizarBola() {
+            ball.style.width = size + 'px';
+            ball.style.height = size + 'px';
+            ball.innerText = Math.floor(size);
+        }
+    </script>
+</body>
+</html>
