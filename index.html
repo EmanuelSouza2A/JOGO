@@ -1,60 +1,124 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-br">
 <head>
-    <title>Live Game - Bolinha</title>
+    <meta charset="UTF-8">
+    <title>Interactive TikTok Game PRO</title>
     <script src="https://unpkg.com/tiktok-live-connector@latest/dist/browser/index.js"></script>
     <style>
-        body { margin: 0; background: #00ff00; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; }
-        #ball { 
-            width: 100px; height: 100px; 
-            background: radial-gradient(circle, #ff0000, #330000); 
-            border-radius: 50%; transition: 0.1s; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            display: flex; justify-content: center; align-items: center; color: white; font-weight: bold;
-        }
-        #info { position: fixed; top: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 10px; border-radius: 5px; }
+        body { margin: 0; background: #00ff00; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
+        #ui-layer { position: absolute; top: 20px; left: 20px; z-index: 10; color: white; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 10px; border: 2px solid #00d4ff; }
+        input { padding: 8px; border-radius: 5px; border: none; }
+        button { padding: 8px 15px; background: #00d4ff; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        canvas { display: block; }
     </style>
 </head>
 <body>
-    <div id="info">Conectando ao @<span id="target">Aguardando...</span></div>
-    <div id="ball" id="displaySize">100</div>
+
+    <div id="ui-layer">
+        <input type="text" id="username" placeholder="Seu @ do TikTok">
+        <button onclick="conectar()">CONECTAR</button>
+        <div id="status" style="margin-top:10px; font-size: 12px; color: #aaa;">Status: Desconectado</div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
 
     <script>
-        // --- CONFIGURAÇÃO ---
-        const SEU_USER = "SEU_USUARIO_AQUI"; // COLOQUE SEU @ SEM O @
-        let size = 100;
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
 
-        document.getElementById('target').innerText = SEU_USER;
-        const ball = document.getElementById('ball');
+        let particles = [];
 
-        // Conecta com o TikTok
-        let connection = new TikTokLiveConnector(SEU_USER);
+        class Jogador {
+            constructor(name, photo, size, color) {
+                this.name = name;
+                this.photo = new Image();
+                this.photo.src = photo;
+                this.x = Math.random() * canvas.width;
+                this.y = canvas.height + 100;
+                this.size = size;
+                this.targetSize = size;
+                this.color = color;
+                this.speedY = - (Math.random() * 2 + 1);
+                this.vx = (Math.random() - 0.5) * 2;
+            }
 
-        connection.connect().then(state => {
-            console.log("Conectado!");
-        }).catch(err => {
-            console.error("Erro ao conectar", err);
-        });
+            draw() {
+                ctx.save();
+                // Efeito de Glow (Futurista)
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = this.color;
+                
+                // Desenha Círculo
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = "#111";
+                ctx.fill();
+                ctx.strokeStyle = this.color;
+                ctx.lineWidth = 3;
+                ctx.stroke();
 
-        // Lógica para CURTIDAS (Likes)
-        connection.on('like', (data) => {
-            size += 2; // Aumenta de 2 em 2 pixels por curtida
-            atualizarBola();
-        });
+                // Desenha Foto de Perfil dentro
+                ctx.clip();
+                if (this.photo.complete) {
+                    ctx.drawImage(this.photo, this.x - this.size, this.y - this.size, this.size * 2, this.size * 2);
+                }
+                ctx.restore();
 
-        // Lógica para PRESENTES (Gifts)
-        connection.on('gift', (data) => {
-            // Aumenta proporcional ao valor do presente (diamantes)
-            let multiplicador = data.diamondCount * 15; 
-            size += multiplicador;
-            atualizarBola();
-        });
+                // Nome do Jogador
+                ctx.fillStyle = "white";
+                ctx.textAlign = "center";
+                ctx.font = `bold ${Math.max(10, this.size/3)}px Arial`;
+                ctx.fillText(this.name, this.x, this.y + this.size + 15);
+            }
 
-        function atualizarBola() {
-            ball.style.width = size + 'px';
-            ball.style.height = size + 'px';
-            ball.innerText = Math.floor(size);
+            update() {
+                this.y += this.speedY;
+                this.x += this.vx;
+                if (this.size < this.targetSize) this.size += 1;
+                
+                // Bater nas bordas
+                if (this.x < this.size || this.x > canvas.width - this.size) this.vx *= -1;
+            }
         }
+
+        function conectar() {
+            const user = document.getElementById('username').value;
+            if(!user) return alert("Digita o @ mano!");
+
+            const tiktok = new TikTokLiveConnector(user);
+            document.getElementById('status').innerText = "Tentando conectar...";
+
+            tiktok.connect().then(state => {
+                document.getElementById('status').innerText = "CONECTADO AO @ " + user;
+                document.getElementById('ui-layer').style.display = "none"; // Esconde o menu
+            }).catch(e => {
+                document.getElementById('status').innerText = "Erro: " + e;
+            });
+
+            // QUANDO RECEBE CURTIDA
+            tiktok.on('like', (data) => {
+                particles.push(new Jogador(data.uniqueId, data.profilePictureUrl, 30, "#00d4ff"));
+            });
+
+            // QUANDO RECEBE PRESENTE
+            tiktok.on('gift', (data) => {
+                let novaBola = new Jogador(data.uniqueId, data.profilePictureUrl, 60 + (data.diamondCount * 2), "#ff00d4");
+                particles.push(novaBola);
+            });
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach((p, index) => {
+                p.update();
+                p.draw();
+                if (p.y < -200) particles.splice(index, 1);
+            });
+            requestAnimationFrame(animate);
+        }
+        animate();
     </script>
 </body>
 </html>
